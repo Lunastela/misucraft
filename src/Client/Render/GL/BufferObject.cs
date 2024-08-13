@@ -5,13 +5,12 @@ namespace Misucraft.Client.Render {
     public class BufferObject<TDataType> : IDisposable
         where TDataType : unmanaged
     {
-        private uint _handle;
+        public uint _handle;
         private BufferTargetARB _bufferType;
         private GL _gl;
         private nuint _currentSize; 
 
-        public unsafe BufferObject(GL gl, Span<TDataType> data, BufferTargetARB bufferType)
-        {
+        public unsafe BufferObject(GL gl, Span<TDataType> data, BufferTargetARB bufferType) {
             _gl = gl;
             _bufferType = bufferType;
 
@@ -19,7 +18,7 @@ namespace Misucraft.Client.Render {
             Bind();
             fixed (void* d = data) {
                 _currentSize = (nuint)(data.Length * sizeof(TDataType));
-                _gl.BufferData(bufferType, _currentSize, d, BufferUsageARB.StaticDraw);
+                _gl.BufferData(bufferType, _currentSize, d, BufferUsageARB.DynamicDraw);
             }
         }
 
@@ -30,23 +29,19 @@ namespace Misucraft.Client.Render {
 
         public unsafe void UpdateData(Span<TDataType> data)
         {
-            Bind();
+            Bind(); // Ensure the buffer is bound
             nuint dataSize = (nuint)(data.Length * sizeof(TDataType));
-            
-            if (dataSize > _currentSize)
+            fixed (void* d = data)
             {
-                // Reallocate buffer if the new data size is larger than the current size
-                fixed (void* d = data)
+                if (dataSize > _currentSize)
                 {
+                    // Reallocate buffer if the new data size is larger than the current size
                     _currentSize = dataSize;
-                    _gl.BufferData(_bufferType, _currentSize, d, BufferUsageARB.StaticDraw);
+                    _gl.BufferData(_bufferType, _currentSize, d, BufferUsageARB.DynamicDraw);
                 }
-            }
-            else
-            {
-                // Update the buffer with the new data
-                fixed (void* d = data)
+                else
                 {
+                    // Update the buffer with the new data
                     _gl.BufferSubData(_bufferType, 0, dataSize, d);
                 }
             }

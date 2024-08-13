@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Numerics;
+using Silk.NET.Maths;
 using Silk.NET.OpenGL;
 
 namespace Misucraft.Client.Render
@@ -31,6 +32,21 @@ namespace Misucraft.Client.Render
 
         public void Use() {
             _gl.UseProgram(_handle);
+        }
+
+        public void SetUniform(string name, ref Vector3 vector) {
+            int location = _gl.GetUniformLocation(_handle, name);
+            if (location == -1)
+                throw new Exception($"{name} uniform not found on shader.");
+            _gl.Uniform3(location, vector);
+        }
+
+        public void SetUniform(string name, Vector3[] vectors) {
+            int location = _gl.GetUniformLocation(_handle, name);
+            if (location == -1)
+                throw new Exception($"{name} uniform not found on shader.");
+            for (int i = 0; i < vectors.Length; i++)
+                _gl.Uniform3(location + i, vectors[i]);
         }
 
         public void SetUniform(string name, int value) {

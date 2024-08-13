@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Misucraft.Util
 {
     public static class MathHelper

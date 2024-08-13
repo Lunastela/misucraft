@@ -17,10 +17,10 @@ namespace Misucraft.Client.Render {
         private static Vector2 LastMousePosition;
         public static IKeyboard primaryKeyboard;
         
-        public static unsafe void OnUpdate(double deltaTime) {
+        public static void OnUpdate(double deltaTime) {
             var moveSpeed = 2.5f * (float) deltaTime;
             if (primaryKeyboard.IsKeyPressed(Key.ShiftLeft))
-                moveSpeed = moveSpeed * 2f;
+                moveSpeed = moveSpeed * 5f;
 
             if (primaryKeyboard.IsKeyPressed(Key.W))
                 Position += moveSpeed * Front;
@@ -32,7 +32,7 @@ namespace Misucraft.Client.Render {
                 Position += Vector3.Normalize(Vector3.Cross(Front, Up)) * moveSpeed;
         }
 
-        public static unsafe void OnMouseMove(IMouse mouse, Vector2 position) {
+        public static void OnMouseMove(IMouse mouse, Vector2 position) {
             var lookSensitivity = 0.1f;
             if (LastMousePosition == default) 
                 LastMousePosition = position;
@@ -53,7 +53,7 @@ namespace Misucraft.Client.Render {
             }
         }
 
-        public static unsafe void OnMouseWheel(IMouse mouse, ScrollWheel scrollWheel) {
+        public static void OnMouseWheel(IMouse mouse, ScrollWheel scrollWheel) {
             Zoom = Math.Clamp(Zoom - scrollWheel.Y, 1.0f, 90f);
         }
     }

@@ -8,8 +8,8 @@ namespace Misucraft.Client.Render {
     {
         private uint _handle;
         private GL _gl;
-        private BufferObject<TVertexType> _vbo;
-        private BufferObject<TIndexType> _ebo;
+        public BufferObject<TVertexType> _vbo;
+        public BufferObject<TIndexType> _ebo;
 
         public VertexArrayObject(GL gl, BufferObject<TVertexType> vbo, BufferObject<TIndexType> ebo)
         {

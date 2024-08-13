@@ -1,21 +1,25 @@
+using System.Numerics;
 using Misucraft.Util;
 using Silk.NET.Maths;
 
 namespace Misucraft.Server {
     public class Chunk {
-        public static readonly int CHUNK_SIZE = 16;
+        public static readonly int CHUNK_SIZE = 64;
+        public static Dictionary<Vector3D<int>, Chunk> chunkMap 
+            = new Dictionary<Vector3D<int>, Chunk>();
+
         public Block[,,] Blocks;
+        public Vector3D<int> Position;
         public Chunk(int x, int y, int z) {
+            // Create Position and add to Chunk Map
+            Position = new Vector3D<int>(x, y, z);
+            chunkMap.Add(Position, this);
+
             Blocks = new Block[CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE];
             for (int i = 0; i < CHUNK_SIZE; i++) {
                 for (int j = 0; j < CHUNK_SIZE; j++) {
                     for (int k = 0; k < CHUNK_SIZE; k++) {
-                        // double heightDisplacement = (Math.Sin((i * Math.PI) / CHUNK_SIZE) * 4);
-                        // if ((8 + heightDisplacement) >= j)
-                        if ((i <= 0 || i >= CHUNK_SIZE - 1)
-                        || (k <= 0 || k >= CHUNK_SIZE - 1))
-                            Blocks[i, j, k] = new Block(BlockType.Dirt);
-                        // Console.WriteLine(heightDisplacement);
+                        Blocks[i, j, k] = new Block(BlockType.Dirt);
                     }
                 }
             }
@@ -33,46 +37,60 @@ namespace Misucraft.Server {
             return new Vector3D<int>(x, y, z);
         }
 
-        public uint[] FaceMesh = new uint[CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        public void BuildMesh() {
-            for (int x = 0; x < CHUNK_SIZE; x++) {
-                for (int y = 0; y < CHUNK_SIZE; y++) {
-                    for (int z = 0; z < CHUNK_SIZE; z++) {
-                        if (Blocks[x, y, z] == null || Blocks[x, y, z].Type == BlockType.Air) {
-                            FaceMesh[CoordToIndex(x, y, z)] = (uint)BlockFaces.None;
-                            continue;
-                        }
-
-                        uint bitmask = 0;
-                        if (z == CHUNK_SIZE - 1 || Blocks[x, y, z + 1] == null || Blocks[x, y, z + 1].Type == BlockType.Air) {
-                            bitmask |= (uint) BlockFaces.South;
-                        }
-
-                        if (z == 0 || Blocks[x, y, z - 1] == null || Blocks[x, y, z - 1].Type == BlockType.Air) {
-                            bitmask |= (uint)BlockFaces.North;
-                        }
-
-                        if (x == 0 || Blocks[x - 1, y, z] == null || Blocks[x - 1, y, z].Type == BlockType.Air) {
-                            bitmask |= (uint)BlockFaces.West;
-                        }
-
-                        if (x == CHUNK_SIZE - 1 || Blocks[x + 1, y, z] == null || Blocks[x + 1, y, z].Type == BlockType.Air) {
-                            bitmask |= (uint)BlockFaces.East;
-                        }
-
-                        if (y == CHUNK_SIZE - 1 || Blocks[x, y + 1, z] == null || Blocks[x, y + 1, z].Type == BlockType.Air) {
-                            bitmask |= (uint)BlockFaces.Top;
-                        }
-
-                        if (y == 0 || Blocks[x, y - 1, z] == null || Blocks[x, y - 1, z].Type == BlockType.Air) {
-                            bitmask |= (uint)BlockFaces.Bottom;
-                        }
-
-                        FaceMesh[CoordToIndex(x, y, z)] = bitmask;
-                    }
-                }
-            }
+        public static int CoordToChunk(int coord) {
+            if (coord < 0)
+                return (coord / CHUNK_SIZE) - 1;
+            return coord / CHUNK_SIZE;
         }
 
+        public BlockType blockRelativeToChunk(int x, int y, int z) {
+            if (x < 0 || y < 0 || z < 0 || x >= CHUNK_SIZE || y >= CHUNK_SIZE || z >= CHUNK_SIZE) {
+                Vector3D<int> trueChunkPosition = Position 
+                    + new Vector3D<int>(
+                        CoordToChunk(x / CHUNK_SIZE), 
+                        CoordToChunk(y / CHUNK_SIZE), 
+                        CoordToChunk(z / CHUNK_SIZE)
+                    );
+                if (chunkMap[trueChunkPosition] != null)
+                    return chunkMap[trueChunkPosition]
+                        .Blocks[x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE].Type;
+            } else 
+                return Blocks[x, y, z].Type;
+            return BlockType.Air;
+        }
+
+        public static BlockType blockAtAbsoluteCoord(int x, int y, int z) {
+            // Implicitly rounds downwards? I hope???
+            Vector3D<int> chunkPosition = new Vector3D<int>(CoordToChunk(x / CHUNK_SIZE), CoordToChunk(y / CHUNK_SIZE), CoordToChunk(z / CHUNK_SIZE));
+            Chunk focusedChunk = chunkMap[chunkPosition];
+            if (focusedChunk != null)
+                return focusedChunk.Blocks[x % CHUNK_SIZE, y % CHUNK_SIZE, z % CHUNK_SIZE].Type;
+            return BlockType.Air;
+        }
+
+        public static bool isTransparent(BlockType blockType) {
+            // TODO: Change to BlockInformation eventually
+            return blockType == BlockType.Air;
+        }
+
+        private uint PackMeshData(int x, int y, int z, int length, int width) {
+            uint meshData = (uint)(x & 0x3F) | ((uint)(y & 0x3F) << 6) | 
+                ((uint)(z & 0x3F) << 12) | ((uint)((length - 1) & 0x3F) << 18) |
+                ((uint)((width - 1) & 0x3F) << 24);
+            return meshData;
+        }
+
+        public List<uint> FaceMesh = new List<uint>();
+        public void BuildMesh() {
+            // Goal: Output a uint value that allocates 6 bits for X, Y, Z positions of the Mesh and Length and Width of the greedy mesh.
+            FaceMesh.Add(PackMeshData(0, 0, 0, 64, 64));
+            // for (int z = 0; z < CHUNK_SIZE; z++) {
+            //     for (int y = 0; y < 1; y++) {
+            //         for (int x = 0; x < CHUNK_SIZE; x++) {
+            //             FaceMesh.Add(PackMeshData(x, y, z, 1, 1));
+            //         }
+            //     }
+            // }
+        }
     }
 }

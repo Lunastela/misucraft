@@ -1,4 +1,4 @@
-#version 330 core
+#version 430 core
 
 layout(triangles) in;
 layout(triangle_strip, max_vertices = 64) out;
@@ -57,17 +57,19 @@ void main() {
 
     for (int i = 0; i < gl_in.length(); i++) {
         uint bitmask = vFaceCount[i];
-        for (int face = 0; face < 6; face++) {
-            if ((bitmask & (1u << face)) != 0u) {
-                int baseIndex = face * 4;
-                for (int vert = 0; vert < 4; vert++) {
-                    fUv = uvCoords[baseIndex + vert];
-                    gl_Position = calculatePosition(i, blockVertices[baseIndex + vert]);
-                    EmitVertex();
+        if (bitmask > 0u) {
+            for (int face = 0; face < 6; face++) {
+                if ((bitmask & (1u << face)) != 0u) {
+                    int baseIndex = face * 4;
+                    for (int vert = 0; vert < 4; vert++) {
+                        fUv = uvCoords[baseIndex + vert];
+                        gl_Position = calculatePosition(i, blockVertices[baseIndex + vert]);
+                        EmitVertex();
+                    }
+                    EndPrimitive();
                 }
-                EndPrimitive();
+                // 
             }
-            // 
         }
     }
 }
