@@ -1,4 +1,4 @@
-#version 430 core
+#version 460 core
 
 layout (location = 0) in uint meshData;
 
@@ -30,7 +30,34 @@ void main() {
         vec3(x + mesh_length, y, z + mesh_width)
     );
     vec3 blockPosition = instancePosition[gl_VertexID % 4].xyz;
-    fUv = instancePosition[gl_VertexID % 4].xz;
+    fUv = blockPosition.xz;
+    
+    int chunkIndex = gl_DrawID / 6;
+    vec3 chunkPosition = vec3(
+        uChunkPos[chunkIndex * 3], 
+        uChunkPos[(chunkIndex * 3) + 1], 
+        uChunkPos[(chunkIndex * 3) + 2]
+    );
 
-    gl_Position = uProjection * uView * uModel * vec4(blockPosition + vec3(uChunkPos[0], uChunkPos[1], uChunkPos[2]), 1.0);   
+    // Thanks Vercidium I was doing this all out manually
+    int faceIndex = gl_DrawID % 6;
+    if (faceIndex == 0) // Top & Bottom
+        blockPosition.y++;
+    else {
+        fUv.y = 1. - fUv.y;
+        if (faceIndex == 1 || faceIndex == 2) { // Left & Right
+            blockPosition.xy = blockPosition.yx;
+            if (faceIndex == 2)
+                blockPosition.x++;
+            else fUv.y = 1. - fUv.y;
+            fUv.xy = vec2(fUv.y, 1. - fUv.x);
+        }
+        else if (faceIndex == 3 || faceIndex == 4) { // North & South
+            blockPosition.zxy = blockPosition.yxz;
+            if (faceIndex == 4)
+                blockPosition.z++;
+            else fUv.x = 1. - fUv.x;
+        }
+    }
+    gl_Position = uProjection * uView * uModel * vec4(blockPosition + (chunkPosition * CHUNK_SIZE), 1.0);   
 }

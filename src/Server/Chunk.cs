@@ -80,17 +80,22 @@ namespace Misucraft.Server {
             return meshData;
         }
 
-        public List<uint> FaceMesh = new List<uint>();
+        public List<uint>[] FaceMesh = new List<uint>[6];
         public void BuildMesh() {
             // Goal: Output a uint value that allocates 6 bits for X, Y, Z positions of the Mesh and Length and Width of the greedy mesh.
-            FaceMesh.Add(PackMeshData(0, 0, 0, 64, 64));
-            // for (int z = 0; z < CHUNK_SIZE; z++) {
-            //     for (int y = 0; y < 1; y++) {
-            //         for (int x = 0; x < CHUNK_SIZE; x++) {
-            //             FaceMesh.Add(PackMeshData(x, y, z, 1, 1));
-            //         }
-            //     }
-            // }
+            for (int i = 0; i < 6; i++) {
+                if (FaceMesh[i] == null)
+                    FaceMesh[i] = new List<uint>();
+                for (int z = 0; z < 16; z++) {
+                    for (int y = 0; y < 16; y++) {
+                        for (int x = 0; x < 16; x++) {
+                            FaceMesh[i].Add(PackMeshData(x, y, z, 1, 1));
+                        }
+                    }
+                }
+            }
+
+            
         }
     }
 }

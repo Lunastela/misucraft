@@ -1,5 +1,6 @@
 ﻿using System.Drawing;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using Misucraft.Client.Render;
 using Misucraft.Server;
 using Misucraft.Util;
@@ -30,6 +31,7 @@ namespace Misucraft {
         private static void OnUpdate(double deltaTime) {}
 
         private static VertexArrayObject<uint, int> chunkVertexObject;
+        private static BufferObject<DrawCommand> indirectBuffer;
         private static List<Chunk> renderedChunks = new List<Chunk>();
         private static void OnLoad() {
             if (_window == null)
@@ -62,12 +64,54 @@ namespace Misucraft {
             chunkVertexObject.VertexAttributePointer(0, 1, VertexAttribPointerType.Float, 1, 0);
             gl.VertexAttribDivisor(0, 1);
             gl.BindBufferBase(BufferTargetARB.ShaderStorageBuffer, 1, chunkVertexObject._ebo._handle); // not actually an EBO 
+            indirectBuffer = new BufferObject<DrawCommand>(gl, new DrawCommand[]{}, BufferTargetARB.DrawIndirectBuffer);
 
             // gl.PolygonMode(GLEnum.FrontAndBack, GLEnum.Line);
+            // for (int x = 0; x < 4; x++) {
+            //     for (int y = 0; y < 4; y++) {
+            //         for (int z = 0; z < 4; z++) {
+            //             renderedChunks.Add(new Chunk(x, y, z));
+            //         }
+            //     }
+            // }
             renderedChunks.Add(new Chunk(0, 0, 0));
 
-            _texture = new RenderTexture(gl, "rsrc/textures/dirt.png");
+            _texture = new RenderTexture(gl, "rsrc/textures/grass_top.png");
             _blockshader = new RenderShader(gl, "block.vs", "block.fs");
+
+            // gl.PolygonMode(GLEnum.FrontAndBack, GLEnum.Line);
+
+            UpdateChunks();
+        }
+
+        private static unsafe void UpdateChunks() {
+            combinedMeshArray.Clear();
+            chunkPositionArray.Clear();
+            commandList.Clear();
+
+            int blockIndex = 0;
+            foreach (var chunk in renderedChunks) {
+                chunkPositionArray.AddRange([chunk.Position.X, chunk.Position.Y, chunk.Position.Z]);
+                for (int i = 0; i < 6; i++) {
+                    if (chunk.FaceMesh[i] != null) {
+                        combinedMeshArray.AddRange(chunk.FaceMesh[i]);
+                        commandList.Add(new DrawCommand {
+                            Count = 4,
+                            InstanceCount = (uint) chunk.FaceMesh[i].Count,
+                            First = 0,
+                            BaseInstance = (uint) blockIndex
+                        });
+                        blockIndex += chunk.FaceMesh[i].Count;
+                    }
+
+                }
+            }
+            
+            chunkVertexObject.UpdateBuffers(
+                combinedMeshArray.ToArray(),
+                chunkPositionArray.ToArray()
+            );
+            indirectBuffer.UpdateData(commandList.ToArray());
         }
 
         private static RenderTexture _texture;
@@ -75,29 +119,19 @@ namespace Misucraft {
         
         private static List<uint> combinedMeshArray = new List<uint>();
         private static List<int> chunkPositionArray = new List<int>();
+        private static List<DrawCommand> commandList = new List<DrawCommand>();
         
-        private static void OnRender(double deltaTime) {
+        private unsafe static void OnRender(double deltaTime) {
             gl.Enable(EnableCap.DepthTest);
             gl.ClearColor(Color.CornflowerBlue);
             gl.Clear((uint) (ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit));         
 
-            combinedMeshArray.Clear();
-            chunkPositionArray.Clear();
-
+            chunkVertexObject.Bind();
+            indirectBuffer.Bind();
             _texture.Bind();
             _blockshader.Use();
-
-            foreach (var chunk in renderedChunks) {
-                combinedMeshArray.AddRange(chunk.FaceMesh);
-                chunkPositionArray.AddRange([chunk.Position.X, chunk.Position.Y, chunk.Position.Z]);
-            }
             
-            chunkVertexObject.UpdateBuffers(
-                combinedMeshArray.ToArray(),
-                chunkPositionArray.ToArray()
-            );
-
-            var difference = 0f; // (float) Program._window.Time * 250f;
+            var difference = 0f; // (float) _window.Time * 250f;
             var size = _window.FramebufferSize;
             var model = Matrix4x4.CreateRotationY(MathHelper.DegreesToRadians(difference));
             var view = Matrix4x4.CreateLookAt(Camera.Position, Camera.Position + Camera.Front, Camera.Up);
@@ -107,7 +141,12 @@ namespace Misucraft {
             _blockshader.SetUniform("uView", view);
             _blockshader.SetUniform("uProjection", projection);
 
-            gl.DrawArraysInstanced(PrimitiveType.TriangleStrip, 0, 4, (uint) (combinedMeshArray.Count));
+            gl.MultiDrawArraysIndirect(PrimitiveType.TriangleStrip, (void*) 0, (uint) commandList.Count, (uint) 0);
+
+            GLEnum error = gl.GetError();
+            if (error != GLEnum.NoError) {
+                Console.WriteLine(error);
+            }
         }
     }
 }

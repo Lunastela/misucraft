@@ -12,6 +12,15 @@ namespace Misucraft.Server {
         public BlockInformation() {}
     }
 
+    public enum BlockFace {
+        Top = 0,
+        Left = 1,
+        Right = 2,
+        North = 3,
+        South = 4,
+        Bottom = 5
+    }
+
     public class Block {
         public BlockType Type;
         public Block(BlockType _type) {
